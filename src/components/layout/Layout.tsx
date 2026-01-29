@@ -28,7 +28,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex justify-between h-16">
             <div className="flex">
               <Link to="/notices" className="flex items-center px-2 py-2 text-xl font-bold text-gray-900">
-                FeeL 관리자
+                관리자
               </Link>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 <Link
