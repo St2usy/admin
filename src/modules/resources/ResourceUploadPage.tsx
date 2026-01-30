@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   resourcesApi,
+  financeReportApi,
   ResourceFileResponse,
+  FinanceReportResponse,
   ResourceCategory,
   ResourceStats,
   CATEGORY_INFO,
@@ -12,39 +14,29 @@ import { Loading } from '@/components/common/Loading';
 import { getErrorMessage } from '@/api/client';
 
 const CATEGORIES: ResourceCategory[] = ['inspection', 'finance', 'gallery', 'study-support'];
-
-// 월 선택이 필요한 카테고리
-const MONTH_REQUIRED_CATEGORIES: ResourceCategory[] = ['inspection', 'finance', 'study-support'];
-
-const MONTHS = [
-  { value: 1, label: '1월' },
-  { value: 2, label: '2월' },
-  { value: 3, label: '3월' },
-  { value: 4, label: '4월' },
-  { value: 5, label: '5월' },
-  { value: 6, label: '6월' },
-  { value: 7, label: '7월' },
-  { value: 8, label: '8월' },
-  { value: 9, label: '9월' },
-  { value: 10, label: '10월' },
-  { value: 11, label: '11월' },
-  { value: 12, label: '12월' },
-];
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
 
 export const ResourceUploadPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory>('inspection');
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [files, setFiles] = useState<ResourceFileResponse[]>([]);
+  const [financeReports, setFinanceReports] = useState<FinanceReportResponse[]>([]);
   const [stats, setStats] = useState<ResourceStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const requiresMonth = MONTH_REQUIRED_CATEGORIES.includes(selectedCategory);
+  // 회계 보고서 폼 상태
+  const [financeForm, setFinanceForm] = useState({
+    title: '',
+    description: '',
+    year: CURRENT_YEAR,
+    month: new Date().getMonth() + 1,
+  });
+  const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null);
 
   // 통계 조회
   const fetchStats = useCallback(async () => {
@@ -61,8 +53,16 @@ export const ResourceUploadPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await resourcesApi.getAllFilesByCategory(selectedCategory);
-      setFiles(data);
+      if (selectedCategory === 'finance') {
+        // 회계 보고서는 별도 API 사용
+        const data = await financeReportApi.getReports({ page: 0, size: 100 });
+        setFinanceReports(data.content);
+        setFiles([]);
+      } else {
+        const data = await resourcesApi.getAllFilesByCategory(selectedCategory);
+        setFiles(data);
+        setFinanceReports([]);
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -75,27 +75,12 @@ export const ResourceUploadPage: React.FC = () => {
     fetchFiles();
   }, [fetchStats, fetchFiles]);
 
-  // 카테고리 변경 시 선택 초기화
-  useEffect(() => {
-    setSelectedMonth(null);
-    setSelectedFiles([]);
-  }, [selectedCategory]);
-
-  // 파일 선택 처리 (바로 업로드하지 않음)
-  const handleFileSelect = (fileList: FileList | null) => {
+  // 일반 파일 업로드 처리 (finance 제외)
+  const handleFileUpload = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
-    setSelectedFiles(Array.from(fileList));
-  };
-
-  // 실제 업로드 처리
-  const handleUpload = async () => {
-    if (selectedFiles.length === 0) {
-      setError('업로드할 파일을 선택해주세요.');
-      return;
-    }
-
-    if (requiresMonth && !selectedMonth) {
-      setError('월을 선택해주세요.');
+    if (selectedCategory === 'finance') {
+      // finance는 별도 처리
+      setSelectedPdfFile(fileList[0]);
       return;
     }
 
@@ -104,17 +89,54 @@ export const ResourceUploadPage: React.FC = () => {
     setSuccess(null);
 
     try {
-      const title = requiresMonth ? `${selectedMonth}월` : undefined;
-      const uploadPromises = selectedFiles.map((file) =>
-        resourcesApi.uploadFile(selectedCategory, file, title)
+      const uploadPromises = Array.from(fileList).map((file) =>
+        resourcesApi.uploadFile(selectedCategory, file)
       );
       await Promise.all(uploadPromises);
-      setSuccess(`${selectedFiles.length}개 파일이 업로드되었습니다.`);
-      setSelectedFiles([]);
-      setSelectedMonth(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      setSuccess(`${fileList.length}개 파일이 업로드되었습니다.`);
+      fetchFiles();
+      fetchStats();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // 회계 보고서 등록
+  const handleFinanceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPdfFile) {
+      setError('PDF 파일을 선택해주세요.');
+      return;
+    }
+    if (!financeForm.title.trim()) {
+      setError('제목을 입력해주세요.');
+      return;
+    }
+
+    setIsUploading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // 1. PDF 파일 업로드
+      const uploadResult = await financeReportApi.uploadPdf(selectedPdfFile);
+
+      // 2. 회계 보고서 등록
+      await financeReportApi.createReport({
+        title: financeForm.title,
+        description: financeForm.description || undefined,
+        fileName: uploadResult.fileName,
+        fileUrl: uploadResult.fileUrl,
+        fileSize: uploadResult.fileSize,
+        year: financeForm.year,
+        month: financeForm.month,
+      });
+
+      setSuccess('회계 보고서가 등록되었습니다.');
+      setFinanceForm({ title: '', description: '', year: CURRENT_YEAR, month: new Date().getMonth() + 1 });
+      setSelectedPdfFile(null);
       fetchFiles();
       fetchStats();
     } catch (err) {
@@ -129,18 +151,17 @@ export const ResourceUploadPage: React.FC = () => {
     if (!confirm(`"${fileName}" 파일을 삭제하시겠습니까?`)) return;
 
     try {
-      await resourcesApi.deleteFile(id);
+      if (selectedCategory === 'finance') {
+        await financeReportApi.deleteReport(id);
+      } else {
+        await resourcesApi.deleteFile(id);
+      }
       setSuccess('파일이 삭제되었습니다.');
       fetchFiles();
       fetchStats();
     } catch (err) {
       setError(getErrorMessage(err));
     }
-  };
-
-  // 선택된 파일 제거
-  const removeSelectedFile = (index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   // 드래그 앤 드롭
@@ -156,7 +177,7 @@ export const ResourceUploadPage: React.FC = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    handleFileSelect(e.dataTransfer.files);
+    handleFileUpload(e.dataTransfer.files);
   };
 
   // 파일 크기 포맷
@@ -213,105 +234,163 @@ export const ResourceUploadPage: React.FC = () => {
         <h2 className="text-lg font-semibold mb-2">{categoryInfo.label} 업로드</h2>
         <p className="text-gray-600 text-sm mb-4">{categoryInfo.description}</p>
 
-        {/* 월 선택 (필요한 경우) */}
-        {requiresMonth && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              월 선택 <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={selectedMonth || ''}
-              onChange={(e) => setSelectedMonth(e.target.value ? Number(e.target.value) : null)}
-              className="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">월을 선택하세요</option>
-              {MONTHS.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* 파일 드롭 영역 */}
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-            dragOver
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 hover:border-gray-400'
-          }`}
-        >
-          <div className="text-4xl mb-2">📁</div>
-          <p className="text-gray-600 mb-4">
-            파일을 드래그하여 놓거나 아래 버튼을 클릭하세요
-          </p>
-          <label className="inline-block">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={categoryInfo.accept}
-              onChange={(e) => handleFileSelect(e.target.files)}
-              className="hidden"
-            />
-            <span className="px-4 py-2 bg-gray-600 text-white rounded-md cursor-pointer hover:bg-gray-700 transition-colors">
-              파일 선택
-            </span>
-          </label>
-          <p className="text-xs text-gray-500 mt-2">
-            {selectedCategory === 'finance' ? 'PDF 파일만 가능' : '이미지 파일만 가능 (jpeg, png, gif, webp)'}
-          </p>
-        </div>
-
-        {/* 선택된 파일 목록 */}
-        {selectedFiles.length > 0 && (
-          <div className="mt-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">
-              선택된 파일 ({selectedFiles.length}개)
-            </h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {selectedFiles.map((file, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">
-                      {file.type.startsWith('image/') ? '🖼️' : '📄'}
-                    </span>
-                    <span className="text-sm text-gray-700">{file.name}</span>
-                    <span className="text-xs text-gray-500">
-                      ({formatFileSize(file.size)})
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => removeSelectedFile(index)}
-                    className="text-red-500 hover:text-red-700 text-sm"
+        {selectedCategory === 'finance' ? (
+          /* 회계 보고서 폼 */
+          <form onSubmit={handleFinanceSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  제목 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={financeForm.title}
+                  onChange={(e) => setFinanceForm({ ...financeForm, title: e.target.value })}
+                  placeholder="예: 2026년 1월 회계 보고서"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">연도</label>
+                  <select
+                    value={financeForm.year}
+                    onChange={(e) => setFinanceForm({ ...financeForm, year: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    ✕
-                  </button>
+                    {YEARS.map((year) => (
+                      <option key={year} value={year}>{year}년</option>
+                    ))}
+                  </select>
                 </div>
-              ))}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">월</label>
+                  <select
+                    value={financeForm.month}
+                    onChange={(e) => setFinanceForm({ ...financeForm, month: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {MONTHS.map((month) => (
+                      <option key={month} value={month}>{month}월</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
-            {/* 업로드 버튼 */}
-            <div className="mt-4">
-              <Button
-                onClick={handleUpload}
-                isLoading={isUploading}
-                disabled={isUploading || (requiresMonth && !selectedMonth)}
-                className="w-full md:w-auto"
-              >
-                {isUploading ? '업로드 중...' : `${selectedFiles.length}개 파일 업로드`}
-              </Button>
-              {requiresMonth && !selectedMonth && (
-                <p className="text-xs text-red-500 mt-1">월을 먼저 선택해주세요</p>
-              )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">설명 (선택)</label>
+              <textarea
+                value={financeForm.description}
+                onChange={(e) => setFinanceForm({ ...financeForm, description: e.target.value })}
+                placeholder="회계 보고서에 대한 간단한 설명"
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                PDF 파일 <span className="text-red-500">*</span>
+              </label>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  const file = e.dataTransfer.files[0];
+                  if (file?.type === 'application/pdf') {
+                    setSelectedPdfFile(file);
+                  } else {
+                    setError('PDF 파일만 업로드 가능합니다.');
+                  }
+                }}
+                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                  dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {selectedPdfFile ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-2xl">📄</span>
+                    <span className="text-gray-700">{selectedPdfFile.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPdfFile(null)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-gray-600 mb-2">PDF 파일을 드래그하거나 선택하세요</p>
+                    <label className="inline-block">
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) setSelectedPdfFile(file);
+                        }}
+                        className="hidden"
+                      />
+                      <span className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded cursor-pointer hover:bg-gray-200 text-sm">
+                        파일 선택
+                      </span>
+                    </label>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isUploading || !selectedPdfFile || !financeForm.title.trim()}>
+                {isUploading ? '등록 중...' : '회계 보고서 등록'}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          /* 일반 파일 업로드 (드래그 앤 드롭) */
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              dragOver
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            {isUploading ? (
+              <div className="flex flex-col items-center">
+                <Loading />
+                <p className="mt-2 text-gray-600">업로드 중...</p>
+              </div>
+            ) : (
+              <>
+                <div className="text-4xl mb-2">📁</div>
+                <p className="text-gray-600 mb-4">
+                  파일을 드래그하여 놓거나 아래 버튼을 클릭하세요
+                </p>
+                <label className="inline-block">
+                  <input
+                    type="file"
+                    multiple
+                    accept={categoryInfo.accept}
+                    onChange={(e) => handleFileUpload(e.target.files)}
+                    className="hidden"
+                  />
+                  <span className="px-4 py-2 bg-blue-600 text-white rounded-md cursor-pointer hover:bg-blue-700 transition-colors">
+                    파일 선택
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mt-2">
+                  이미지 파일만 가능 (jpeg, png, gif, webp)
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -320,7 +399,7 @@ export const ResourceUploadPage: React.FC = () => {
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b">
           <h2 className="text-lg font-semibold">
-            {categoryInfo.label} 파일 목록 ({files.length}개)
+            {categoryInfo.label} 파일 목록 ({selectedCategory === 'finance' ? financeReports.length : files.length}개)
           </h2>
         </div>
 
@@ -328,79 +407,142 @@ export const ResourceUploadPage: React.FC = () => {
           <div className="p-8 text-center">
             <Loading />
           </div>
-        ) : files.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            업로드된 파일이 없습니다.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">미리보기</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">파일명</th>
-                  {requiresMonth && (
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">월</th>
-                  )}
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">크기</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">업로드일</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">작업</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {files.map((file) => (
-                  <tr key={file.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      {file.fileType.startsWith('image/') ? (
-                        <img
-                          src={file.fileUrl}
-                          alt={file.originalFileName}
-                          className="w-16 h-16 object-cover rounded"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center text-2xl">
-                          📄
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-sm">{file.originalFileName}</div>
-                    </td>
-                    {requiresMonth && (
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {file.title || '-'}
-                      </td>
-                    )}
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {formatFileSize(file.fileSize)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {formatDate(file.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex justify-center gap-2">
-                        <a
-                          href={file.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                        >
-                          보기
-                        </a>
-                        <Button
-                          variant="danger"
-                          onClick={() => handleDelete(file.id, file.originalFileName)}
-                          className="text-sm px-3 py-1"
-                        >
-                          삭제
-                        </Button>
-                      </div>
-                    </td>
+        ) : selectedCategory === 'finance' ? (
+          /* 회계 보고서 목록 */
+          financeReports.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              등록된 회계 보고서가 없습니다.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">제목</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">기간</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">파일</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">크기</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">등록일</th>
+                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">작업</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y">
+                  {financeReports.map((report) => (
+                    <tr key={report.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-sm">{report.title}</div>
+                        {report.description && (
+                          <div className="text-xs text-gray-500 mt-1">{report.description}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {report.year}년 {report.month}월
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {report.fileName}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {formatFileSize(report.fileSize)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {formatDate(report.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex justify-center gap-2">
+                          <a
+                            href={report.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                          >
+                            보기
+                          </a>
+                          <Button
+                            variant="danger"
+                            onClick={() => handleDelete(report.id, report.title)}
+                            className="text-sm px-3 py-1"
+                          >
+                            삭제
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : (
+          /* 일반 파일 목록 */
+          files.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              업로드된 파일이 없습니다.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">미리보기</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">파일명</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">크기</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">업로드일</th>
+                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">작업</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {files.map((file) => (
+                    <tr key={file.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        {file.fileType.startsWith('image/') ? (
+                          <img
+                            src={file.fileUrl}
+                            alt={file.originalFileName}
+                            className="w-16 h-16 object-cover rounded"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center text-2xl">
+                            📄
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-sm">{file.originalFileName}</div>
+                        {file.title && (
+                          <div className="text-xs text-gray-500">{file.title}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {formatFileSize(file.fileSize)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {formatDate(file.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex justify-center gap-2">
+                          <a
+                            href={file.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                          >
+                            보기
+                          </a>
+                          <Button
+                            variant="danger"
+                            onClick={() => handleDelete(file.id, file.originalFileName)}
+                            className="text-sm px-3 py-1"
+                          >
+                            삭제
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </div>
     </div>

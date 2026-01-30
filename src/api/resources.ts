@@ -12,6 +12,35 @@ export interface ResourceFileResponse {
   createdAt: string;
 }
 
+export interface FinanceReportResponse {
+  id: number;
+  title: string;
+  description: string | null;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  year: number;
+  month: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinanceReportRequest {
+  title: string;
+  description?: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  year: number;
+  month: number;
+}
+
+export interface FinanceUploadResponse {
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+}
+
 export interface ResourceStats {
   inspection: number;
   finance: number;
@@ -118,5 +147,43 @@ export const resourcesApi = {
   getStats: async (): Promise<ResourceStats> => {
     const response = await apiClient.get<ResourceStats>('/api/resources/stats');
     return response.data;
+  },
+};
+
+// 회계 보고서 전용 API
+export const financeReportApi = {
+  // PDF 파일 업로드
+  uploadPdf: async (file: File): Promise<FinanceUploadResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<FinanceUploadResponse>('/api/finance/reports/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  // 회계 보고서 등록
+  createReport: async (data: FinanceReportRequest): Promise<FinanceReportResponse> => {
+    const response = await apiClient.post<FinanceReportResponse>('/api/finance/reports', data);
+    return response.data;
+  },
+
+  // 회계 보고서 목록 조회
+  getReports: async (params?: {
+    page?: number;
+    size?: number;
+    keyword?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    year?: number;
+  }): Promise<{ content: FinanceReportResponse[]; totalPages: number; totalElements: number }> => {
+    const response = await apiClient.get('/api/finance/reports', { params });
+    return response.data;
+  },
+
+  // 회계 보고서 삭제
+  deleteReport: async (id: number): Promise<void> => {
+    await apiClient.delete(`/api/finance/reports/${id}`);
   },
 };
