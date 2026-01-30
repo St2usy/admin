@@ -18,6 +18,9 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
 
+// 월별 업로드가 필요한 카테고리
+const PERIOD_CATEGORIES: ResourceCategory[] = ['inspection', 'study-support'];
+
 export const ResourceUploadPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<ResourceCategory>('inspection');
   const [files, setFiles] = useState<ResourceFileResponse[]>([]);
@@ -38,6 +41,19 @@ export const ResourceUploadPage: React.FC = () => {
   });
   const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null);
 
+  // 시설점검/심과함께 업로드 폼 상태
+  const [periodForm, setPeriodForm] = useState({
+    year: CURRENT_YEAR,
+    month: new Date().getMonth() + 1,
+  });
+  const [selectedPeriodFiles, setSelectedPeriodFiles] = useState<File[]>([]);
+
+  // 조회 필터 상태
+  const [filterYear, setFilterYear] = useState<number | null>(null);
+  const [filterMonth, setFilterMonth] = useState<number | null>(null);
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [availableMonths, setAvailableMonths] = useState<number[]>([]);
+
   // 통계 조회
   const fetchStats = useCallback(async () => {
     try {
@@ -47,6 +63,38 @@ export const ResourceUploadPage: React.FC = () => {
       console.error('통계 조회 실패:', err);
     }
   }, []);
+
+  // 사용 가능한 연도 목록 조회
+  const fetchAvailableYears = useCallback(async () => {
+    if (PERIOD_CATEGORIES.includes(selectedCategory)) {
+      try {
+        const years = await resourcesApi.getAvailableYears(selectedCategory);
+        setAvailableYears(years);
+        if (years.length > 0 && !filterYear) {
+          setFilterYear(years[0]);
+        }
+      } catch (err) {
+        console.error('연도 목록 조회 실패:', err);
+      }
+    }
+  }, [selectedCategory, filterYear]);
+
+  // 사용 가능한 월 목록 조회
+  const fetchAvailableMonths = useCallback(async () => {
+    if (PERIOD_CATEGORIES.includes(selectedCategory) && filterYear) {
+      try {
+        const months = await resourcesApi.getAvailableMonths(selectedCategory, filterYear);
+        setAvailableMonths(months);
+        if (months.length > 0) {
+          setFilterMonth(months[0]);
+        } else {
+          setFilterMonth(null);
+        }
+      } catch (err) {
+        console.error('월 목록 조회 실패:', err);
+      }
+    }
+  }, [selectedCategory, filterYear]);
 
   // 파일 목록 조회
   const fetchFiles = useCallback(async () => {
@@ -58,9 +106,18 @@ export const ResourceUploadPage: React.FC = () => {
         const data = await financeReportApi.getReports({ page: 0, size: 100 });
         setFinanceReports(data.content);
         setFiles([]);
-      } else {
+      } else if (PERIOD_CATEGORIES.includes(selectedCategory) && filterYear && filterMonth) {
+        // 시설점검/심과함께는 연도/월별 조회
+        const data = await resourcesApi.getFilesByPeriod(selectedCategory, filterYear, filterMonth);
+        setFiles(data);
+        setFinanceReports([]);
+      } else if (!PERIOD_CATEGORIES.includes(selectedCategory)) {
+        // 갤러리는 전체 조회
         const data = await resourcesApi.getAllFilesByCategory(selectedCategory);
         setFiles(data);
+        setFinanceReports([]);
+      } else {
+        setFiles([]);
         setFinanceReports([]);
       }
     } catch (err) {
@@ -68,14 +125,34 @@ export const ResourceUploadPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  }, [selectedCategory, filterYear, filterMonth]);
+
+  // 카테고리 변경 시 필터 초기화
+  useEffect(() => {
+    setFilterYear(null);
+    setFilterMonth(null);
+    setAvailableYears([]);
+    setAvailableMonths([]);
+    setSelectedPeriodFiles([]);
+    setPeriodForm({ year: CURRENT_YEAR, month: new Date().getMonth() + 1 });
   }, [selectedCategory]);
 
   useEffect(() => {
     fetchStats();
-    fetchFiles();
-  }, [fetchStats, fetchFiles]);
+    fetchAvailableYears();
+  }, [fetchStats, fetchAvailableYears]);
 
-  // 일반 파일 업로드 처리 (finance 제외)
+  useEffect(() => {
+    if (filterYear) {
+      fetchAvailableMonths();
+    }
+  }, [filterYear, fetchAvailableMonths]);
+
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
+
+  // 일반 파일 업로드 처리 (gallery용)
   const handleFileUpload = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     if (selectedCategory === 'finance') {
@@ -83,7 +160,13 @@ export const ResourceUploadPage: React.FC = () => {
       setSelectedPdfFile(fileList[0]);
       return;
     }
+    if (PERIOD_CATEGORIES.includes(selectedCategory)) {
+      // 시설점검/심과함께는 파일 선택만 (바로 업로드 안함)
+      setSelectedPeriodFiles(Array.from(fileList));
+      return;
+    }
 
+    // 갤러리는 바로 업로드
     setIsUploading(true);
     setError(null);
     setSuccess(null);
@@ -96,6 +179,40 @@ export const ResourceUploadPage: React.FC = () => {
       setSuccess(`${fileList.length}개 파일이 업로드되었습니다.`);
       fetchFiles();
       fetchStats();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // 시설점검/심과함께 업로드
+  const handlePeriodUpload = async () => {
+    if (selectedPeriodFiles.length === 0) {
+      setError('파일을 선택해주세요.');
+      return;
+    }
+
+    setIsUploading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const uploadPromises = selectedPeriodFiles.map((file) =>
+        resourcesApi.uploadFile(selectedCategory, file, {
+          year: periodForm.year,
+          month: periodForm.month,
+        })
+      );
+      await Promise.all(uploadPromises);
+      setSuccess(`${selectedPeriodFiles.length}개 파일이 ${periodForm.year}년 ${periodForm.month}월에 업로드되었습니다.`);
+      setSelectedPeriodFiles([]);
+      // 필터를 업로드한 연도/월로 변경
+      setFilterYear(periodForm.year);
+      setFilterMonth(periodForm.month);
+      fetchFiles();
+      fetchStats();
+      fetchAvailableYears();
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -351,8 +468,110 @@ export const ResourceUploadPage: React.FC = () => {
               </Button>
             </div>
           </form>
+        ) : PERIOD_CATEGORIES.includes(selectedCategory) ? (
+          /* 시설점검/심과함께 - 연도/월 선택 폼 */
+          <div className="space-y-4">
+            {/* 연도/월 선택 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  연도 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={periodForm.year}
+                  onChange={(e) => setPeriodForm({ ...periodForm, year: Number(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {YEARS.map((year) => (
+                    <option key={year} value={year}>{year}년</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  월 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={periodForm.month}
+                  onChange={(e) => setPeriodForm({ ...periodForm, month: Number(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {MONTHS.map((month) => (
+                    <option key={month} value={month}>{month}월</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* 파일 선택 영역 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                이미지 파일 <span className="text-red-500">*</span>
+              </label>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {selectedPeriodFiles.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-gray-700 font-medium">{selectedPeriodFiles.length}개 파일 선택됨</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {selectedPeriodFiles.map((file, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+                          {file.name}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPeriodFiles([])}
+                      className="text-red-500 hover:text-red-700 text-sm"
+                    >
+                      선택 취소
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-4xl mb-2">🖼️</div>
+                    <p className="text-gray-600 mb-2">
+                      이미지를 드래그하거나 선택하세요
+                    </p>
+                    <label className="inline-block">
+                      <input
+                        type="file"
+                        multiple
+                        accept={categoryInfo.accept}
+                        onChange={(e) => handleFileUpload(e.target.files)}
+                        className="hidden"
+                      />
+                      <span className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded cursor-pointer hover:bg-gray-200 text-sm">
+                        파일 선택
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-2">
+                      여러 파일 동시 선택 가능 (jpeg, png, gif, webp)
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* 업로드 버튼 */}
+            <div className="flex justify-end">
+              <Button
+                onClick={handlePeriodUpload}
+                disabled={isUploading || selectedPeriodFiles.length === 0}
+              >
+                {isUploading ? '업로드 중...' : `${periodForm.year}년 ${periodForm.month}월에 업로드`}
+              </Button>
+            </div>
+          </div>
         ) : (
-          /* 일반 파일 업로드 (드래그 앤 드롭) */
+          /* 갤러리 - 일반 파일 업로드 (드래그 앤 드롭) */
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -398,9 +617,43 @@ export const ResourceUploadPage: React.FC = () => {
       {/* 파일 목록 */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold">
-            {categoryInfo.label} 파일 목록 ({selectedCategory === 'finance' ? financeReports.length : files.length}개)
-          </h2>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <h2 className="text-lg font-semibold">
+              {categoryInfo.label} 파일 목록 ({selectedCategory === 'finance' ? financeReports.length : files.length}개)
+            </h2>
+            
+            {/* 시설점검/심과함께 연도/월 필터 */}
+            {PERIOD_CATEGORIES.includes(selectedCategory) && availableYears.length > 0 && (
+              <div className="flex items-center gap-2">
+                <select
+                  value={filterYear || ''}
+                  onChange={(e) => {
+                    const year = e.target.value ? Number(e.target.value) : null;
+                    setFilterYear(year);
+                    setFilterMonth(null);
+                  }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">연도 선택</option>
+                  {availableYears.map((year) => (
+                    <option key={year} value={year}>{year}년</option>
+                  ))}
+                </select>
+                {filterYear && availableMonths.length > 0 && (
+                  <select
+                    value={filterMonth || ''}
+                    onChange={(e) => setFilterMonth(e.target.value ? Number(e.target.value) : null)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">월 선택</option>
+                    {availableMonths.map((month) => (
+                      <option key={month} value={month}>{month}월</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {isLoading ? (
@@ -476,7 +729,9 @@ export const ResourceUploadPage: React.FC = () => {
           /* 일반 파일 목록 */
           files.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
-              업로드된 파일이 없습니다.
+              {PERIOD_CATEGORIES.includes(selectedCategory) && (!filterYear || !filterMonth)
+                ? '연도와 월을 선택하여 파일을 조회하세요.'
+                : '업로드된 파일이 없습니다.'}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -485,6 +740,9 @@ export const ResourceUploadPage: React.FC = () => {
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">미리보기</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">파일명</th>
+                    {PERIOD_CATEGORIES.includes(selectedCategory) && (
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">기간</th>
+                    )}
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">크기</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">업로드일</th>
                     <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">작업</th>
@@ -512,6 +770,11 @@ export const ResourceUploadPage: React.FC = () => {
                           <div className="text-xs text-gray-500">{file.title}</div>
                         )}
                       </td>
+                      {PERIOD_CATEGORIES.includes(selectedCategory) && (
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {file.year && file.month ? `${file.year}년 ${file.month}월` : '-'}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {formatFileSize(file.fileSize)}
                       </td>

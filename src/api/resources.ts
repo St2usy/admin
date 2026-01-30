@@ -9,6 +9,8 @@ export interface ResourceFileResponse {
   fileSize: number;
   title: string | null;
   description: string | null;
+  year: number | null;
+  month: number | null;
   createdAt: string;
 }
 
@@ -74,18 +76,24 @@ export const CATEGORY_INFO: Record<ResourceCategory, { label: string; accept: st
 };
 
 export const resourcesApi = {
-  // 파일 업로드
+  // 파일 업로드 (연도/월 포함)
   uploadFile: async (
     category: ResourceCategory,
     file: File,
-    title?: string,
-    description?: string
+    options?: {
+      title?: string;
+      description?: string;
+      year?: number;
+      month?: number;
+    }
   ): Promise<ResourceFileResponse> => {
     const formData = new FormData();
     formData.append('category', category);
     formData.append('file', file);
-    if (title) formData.append('title', title);
-    if (description) formData.append('description', description);
+    if (options?.title) formData.append('title', options.title);
+    if (options?.description) formData.append('description', options.description);
+    if (options?.year) formData.append('year', options.year.toString());
+    if (options?.month) formData.append('month', options.month.toString());
 
     const response = await apiClient.post<ResourceFileResponse>('/api/resources/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -93,18 +101,24 @@ export const resourcesApi = {
     return response.data;
   },
 
-  // 여러 파일 업로드
+  // 여러 파일 업로드 (연도/월 포함)
   uploadMultipleFiles: async (
     category: ResourceCategory,
     files: File[],
-    title?: string,
-    description?: string
+    options?: {
+      title?: string;
+      description?: string;
+      year?: number;
+      month?: number;
+    }
   ): Promise<ResourceFileResponse[]> => {
     const formData = new FormData();
     formData.append('category', category);
     files.forEach((file) => formData.append('files', file));
-    if (title) formData.append('title', title);
-    if (description) formData.append('description', description);
+    if (options?.title) formData.append('title', options.title);
+    if (options?.description) formData.append('description', options.description);
+    if (options?.year) formData.append('year', options.year.toString());
+    if (options?.month) formData.append('month', options.month.toString());
 
     const response = await apiClient.post<ResourceFileResponse[]>('/api/resources/upload-multiple', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -146,6 +160,34 @@ export const resourcesApi = {
   // 전체 카테고리 통계
   getStats: async (): Promise<ResourceStats> => {
     const response = await apiClient.get<ResourceStats>('/api/resources/stats');
+    return response.data;
+  },
+
+  // 연도/월별 파일 목록 조회
+  getFilesByPeriod: async (
+    category: ResourceCategory,
+    year: number,
+    month?: number
+  ): Promise<ResourceFileResponse[]> => {
+    const params: Record<string, unknown> = { category, year };
+    if (month) params.month = month;
+    const response = await apiClient.get<ResourceFileResponse[]>('/api/resources/by-period', { params });
+    return response.data;
+  },
+
+  // 사용 가능한 연도 목록 조회
+  getAvailableYears: async (category: ResourceCategory): Promise<number[]> => {
+    const response = await apiClient.get<number[]>('/api/resources/available-years', {
+      params: { category },
+    });
+    return response.data;
+  },
+
+  // 사용 가능한 월 목록 조회
+  getAvailableMonths: async (category: ResourceCategory, year: number): Promise<number[]> => {
+    const response = await apiClient.get<number[]>('/api/resources/available-months', {
+      params: { category, year },
+    });
     return response.data;
   },
 };
