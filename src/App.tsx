@@ -7,8 +7,7 @@ import { NoticeListPage } from '@/modules/notices/NoticeListPage';
 import { NoticeFormPage } from '@/modules/notices/NoticeFormPage';
 import { GalleryListPage } from '@/modules/gallery/GalleryListPage';
 import { GalleryFormPage } from '@/modules/gallery/GalleryFormPage';
-import { MatchingListPage } from '@/modules/matching/MatchingListPage';
-import { MatchingFormPage } from '@/modules/matching/MatchingFormPage';
+import { ResourceUploadPage } from '@/modules/resources/ResourceUploadPage';
 
 function App() {
   return (
@@ -77,31 +76,11 @@ function App() {
             }
           />
           <Route
-            path="/matching"
+            path="/resources"
             element={
               <ProtectedRoute>
                 <Layout>
-                  <MatchingListPage />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/matching/new"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <MatchingFormPage />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/matching/:id/edit"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <MatchingFormPage />
+                  <ResourceUploadPage />
                 </Layout>
               </ProtectedRoute>
             }
