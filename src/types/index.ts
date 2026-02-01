@@ -77,6 +77,54 @@ export interface GalleryResponseDto {
   category: string | null;
 }
 
+// 매칭 관련 타입
+export interface MatchingRequestDto {
+  title: string;
+  type: string;
+  category?: string;
+  description?: string;
+  maxMembers?: number;
+  currentMembers?: number;
+  deadline?: string;
+  thumbnail?: string;
+  organizerId?: number;
+  organizerName?: string;
+  companyType?: string;
+  targetAudience?: string;
+  applicationStart?: string;
+  applicationEnd?: string;
+  activityPeriod?: string;
+  recruitCount?: string;
+  activityArea?: string;
+  homepage?: string;
+  tagsActivity?: string[];
+}
+
+export interface MatchingResponseDto {
+  id: number;
+  title: string;
+  type: string;
+  category: string | null;
+  description: string | null;
+  members: string | null;
+  deadline: string | null;
+  dDay: number | null;
+  views: number;
+  comments: number;
+  thumbnail: string | null;
+  organizerId: number | null;
+  organizerName: string | null;
+  companyType: string | null;
+  targetAudience: string | null;
+  applicationStart: string | null;
+  applicationEnd: string | null;
+  activityPeriod: string | null;
+  recruitCount: string | null;
+  activityArea: string | null;
+  homepage: string | null;
+  tagsActivity: string[];
+}
+
 // API 에러 응답 타입
 export interface ApiError {
   message: string;
