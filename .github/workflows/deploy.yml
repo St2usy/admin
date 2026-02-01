@@ -18,13 +18,13 @@ jobs:
           port: ${{ secrets.JCLOUD_SSH_PORT }}
           script: |
             set -e
-            cd /home/ubuntu/admin
-            git fetch origin main
-            git reset --hard origin/main
-            
-            if docker compose build --no-cache admin-front; then
-              docker compose up -d --force-recreate admin-front
-              docker image prune -f
-          else
-              exit 1
-          fi
+              cd /home/ubuntu/admin
+              git fetch origin main
+              git reset --hard origin/main
+              
+              if docker compose build --no-cache admin-front; then
+                docker compose up -d --force-recreate admin-front
+                docker image prune -f
+            else
+                exit 1
+            fi
