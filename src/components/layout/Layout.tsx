@@ -28,7 +28,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex justify-between h-16">
             <div className="flex">
               <Link to="/notices" className="flex items-center px-2 py-2 text-xl font-bold text-gray-900">
-                FeeL 관리자
+                관리자
               </Link>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 <Link
@@ -50,6 +50,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   }`}
                 >
                   갤러리
+                </Link>
+                <Link
+                  to="/resources"
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/resources')
+                      ? 'border-blue-500 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  }`}
+                >
+                  파일 업로드
                 </Link>
               </div>
             </div>

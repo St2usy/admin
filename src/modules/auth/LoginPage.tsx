@@ -32,7 +32,7 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-        <h1 className="text-2xl font-bold text-center mb-6">FeeL 관리자 로그인</h1>
+        <h1 className="text-2xl font-bold text-center mb-6">관리자 로그인</h1>
         {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
         <form onSubmit={handleSubmit}>
           <Input

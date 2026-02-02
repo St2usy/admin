@@ -7,6 +7,7 @@ import { NoticeListPage } from '@/modules/notices/NoticeListPage';
 import { NoticeFormPage } from '@/modules/notices/NoticeFormPage';
 import { GalleryListPage } from '@/modules/gallery/GalleryListPage';
 import { GalleryFormPage } from '@/modules/gallery/GalleryFormPage';
+import { ResourceUploadPage } from '@/modules/resources/ResourceUploadPage';
 
 function App() {
   return (
@@ -70,6 +71,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <GalleryFormPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/resources"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ResourceUploadPage />
                 </Layout>
               </ProtectedRoute>
             }
