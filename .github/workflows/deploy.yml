@@ -12,10 +12,10 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.JCLOUD_SSH_HOST }}
-          username: ${{ secrets.JCLOUD_SSH_USER }}
-          key: ${{ secrets.JCLOUD_SSH_KEY }}
-          port: ${{ secrets.JCLOUD_SSH_PORT }}
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
           script: |
             set -e
               cd /home/ubuntu/admin
