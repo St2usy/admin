@@ -8,6 +8,7 @@ import {
   ResourceStats,
   CATEGORY_INFO,
 } from '@/api/resources';
+const isGallery = (cat: ResourceCategory) => cat === 'gallery';
 import { Button } from '@/components/common/Button';
 import { Alert } from '@/components/common/Alert';
 import { Loading } from '@/components/common/Loading';
@@ -48,11 +49,27 @@ export const ResourceUploadPage: React.FC = () => {
   });
   const [selectedPeriodFiles, setSelectedPeriodFiles] = useState<File[]>([]);
 
+  // 갤러리 업로드 폼 (제목, 상세정보, 행사일)
+  const [galleryForm, setGalleryForm] = useState({
+    title: '',
+    description: '',
+    eventDate: '', // yyyy-MM-dd
+  });
+  const [selectedGalleryFiles, setSelectedGalleryFiles] = useState<File[]>([]);
+
   // 조회 필터 상태
   const [filterYear, setFilterYear] = useState<number | null>(null);
   const [filterMonth, setFilterMonth] = useState<number | null>(null);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [availableMonths, setAvailableMonths] = useState<number[]>([]);
+
+  // 갤러리 제목/행사일 수정 모달
+  const [editingFile, setEditingFile] = useState<ResourceFileResponse | null>(null);
+  const [editForm, setEditForm] = useState<{ title: string; eventDate: string }>({
+    title: '',
+    eventDate: '',
+  });
+  const [isSavingMeta, setIsSavingMeta] = useState(false);
 
   // 통계 조회
   const fetchStats = useCallback(async () => {
@@ -134,7 +151,9 @@ export const ResourceUploadPage: React.FC = () => {
     setAvailableYears([]);
     setAvailableMonths([]);
     setSelectedPeriodFiles([]);
+    setSelectedGalleryFiles([]);
     setPeriodForm({ year: CURRENT_YEAR, month: new Date().getMonth() + 1 });
+    setGalleryForm({ title: '', description: '', eventDate: '' });
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -166,17 +185,34 @@ export const ResourceUploadPage: React.FC = () => {
       return;
     }
 
-    // 갤러리는 바로 업로드
+    // 갤러리는 파일만 선택 (폼 입력 후 업로드 버튼으로 전송)
+    setSelectedGalleryFiles((prev) => [...prev, ...Array.from(fileList)]);
+  };
+
+  // 갤러리 업로드 (제목·상세정보·행사일 적용)
+  const handleGalleryUpload = async () => {
+    if (selectedGalleryFiles.length === 0) {
+      setError('파일을 선택해주세요.');
+      return;
+    }
+
     setIsUploading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const uploadPromises = Array.from(fileList).map((file) =>
-        resourcesApi.uploadFile(selectedCategory, file)
+      const meta = {
+        title: galleryForm.title.trim() || undefined,
+        description: galleryForm.description.trim() || undefined,
+        eventDate: galleryForm.eventDate.trim() || undefined,
+      };
+      const uploadPromises = selectedGalleryFiles.map((file) =>
+        resourcesApi.uploadFile(selectedCategory, file, meta)
       );
       await Promise.all(uploadPromises);
-      setSuccess(`${fileList.length}개 파일이 업로드되었습니다.`);
+      setSuccess(`${selectedGalleryFiles.length}개 파일이 업로드되었습니다.`);
+      setSelectedGalleryFiles([]);
+      setGalleryForm({ title: '', description: '', eventDate: '' });
       fetchFiles();
       fetchStats();
     } catch (err) {
@@ -297,6 +333,39 @@ export const ResourceUploadPage: React.FC = () => {
     handleFileUpload(e.dataTransfer.files);
   };
 
+  // 갤러리 제목/행사일 수정 모달 열기 (행사일은 DB created_at에 반영됨)
+  const openEditMeta = (file: ResourceFileResponse) => {
+    setEditingFile(file);
+    setEditForm({
+      title: file.title ?? '',
+      eventDate: file.createdAt ? String(file.createdAt).slice(0, 10) : '',
+    });
+  };
+
+  const closeEditMeta = () => {
+    setEditingFile(null);
+    setEditForm({ title: '', eventDate: '' });
+  };
+
+  const saveFileMeta = async () => {
+    if (!editingFile) return;
+    setIsSavingMeta(true);
+    setError(null);
+    try {
+      await resourcesApi.updateFileMeta(editingFile.id, {
+        title: editForm.title.trim() || null,
+        eventDate: editForm.eventDate.trim() || null,
+      });
+      setSuccess('수정되었습니다.');
+      closeEditMeta();
+      fetchFiles();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSavingMeta(false);
+    }
+  };
+
   // 파일 크기 포맷
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
@@ -312,6 +381,15 @@ export const ResourceUploadPage: React.FC = () => {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+    });
+  };
+
+  const formatDateOnly = (dateStr: string | null): string => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     });
   };
 
@@ -571,45 +649,104 @@ export const ResourceUploadPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* 갤러리 - 일반 파일 업로드 (드래그 앤 드롭) */
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragOver
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            {isUploading ? (
-              <div className="flex flex-col items-center">
-                <Loading />
-                <p className="mt-2 text-gray-600">업로드 중...</p>
+          /* 갤러리 - 제목·상세정보·행사일 입력 후 파일 업로드 */
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">제목 (카드에 표시)</label>
+                <input
+                  type="text"
+                  value={galleryForm.title}
+                  onChange={(e) => setGalleryForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="예: 2026 동계 MT"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
-            ) : (
-              <>
-                <div className="text-4xl mb-2">📁</div>
-                <p className="text-gray-600 mb-4">
-                  파일을 드래그하여 놓거나 아래 버튼을 클릭하세요
-                </p>
-                <label className="inline-block">
-                  <input
-                    type="file"
-                    multiple
-                    accept={categoryInfo.accept}
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                    className="hidden"
-                  />
-                  <span className="px-4 py-2 bg-blue-600 text-white rounded-md cursor-pointer hover:bg-blue-700 transition-colors">
-                    파일 선택
-                  </span>
-                </label>
-                <p className="text-xs text-gray-500 mt-2">
-                  이미지 파일만 가능 (jpeg, png, gif, webp)
-                </p>
-              </>
-            )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">행사일 (user-front 표시용)</label>
+                <input
+                  type="date"
+                  value={galleryForm.eventDate}
+                  onChange={(e) => setGalleryForm((f) => ({ ...f, eventDate: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">상세정보 (선택)</label>
+              <textarea
+                value={galleryForm.description}
+                onChange={(e) => setGalleryForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="갤러리 이미지에 대한 설명"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                이미지 파일 <span className="text-red-500">*</span>
+              </label>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {selectedGalleryFiles.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-gray-700 font-medium">{selectedGalleryFiles.length}개 파일 선택됨</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {selectedGalleryFiles.map((file, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+                          {file.name}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGalleryFiles([])}
+                      className="text-red-500 hover:text-red-700 text-sm"
+                    >
+                      선택 취소
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-4xl mb-2">📁</div>
+                    <p className="text-gray-600 mb-2">
+                      이미지를 드래그하거나 선택하세요
+                    </p>
+                    <label className="inline-block">
+                      <input
+                        type="file"
+                        multiple
+                        accept={categoryInfo.accept}
+                        onChange={(e) => handleFileUpload(e.target.files)}
+                        className="hidden"
+                      />
+                      <span className="px-4 py-2 bg-blue-600 text-white rounded-md cursor-pointer hover:bg-blue-700 transition-colors">
+                        파일 선택
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-2">
+                      이미지 파일만 가능 (jpeg, png, gif, webp)
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleGalleryUpload}
+                disabled={isUploading || selectedGalleryFiles.length === 0}
+              >
+                {isUploading ? '업로드 중...' : '업로드'}
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -739,12 +876,19 @@ export const ResourceUploadPage: React.FC = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">미리보기</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">파일명</th>
-                    {PERIOD_CATEGORIES.includes(selectedCategory) && (
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                      {isGallery(selectedCategory) ? '제목' : '파일명'}
+                    </th>
+                    {isGallery(selectedCategory) && (
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">행사일</th>
+                    )}
+                    {PERIOD_CATEGORIES.includes(selectedCategory) && !isGallery(selectedCategory) && (
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">기간</th>
                     )}
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">크기</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">업로드일</th>
+                    {!isGallery(selectedCategory) && (
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">업로드일</th>
+                    )}
                     <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">작업</th>
                   </tr>
                 </thead>
@@ -765,12 +909,23 @@ export const ResourceUploadPage: React.FC = () => {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-sm">{file.originalFileName}</div>
-                        {file.title && (
-                          <div className="text-xs text-gray-500">{file.title}</div>
+                        {isGallery(selectedCategory) ? (
+                          <div className="font-medium text-sm">{file.title || file.originalFileName}</div>
+                        ) : (
+                          <>
+                            <div className="font-medium text-sm">{file.originalFileName}</div>
+                            {file.title && (
+                              <div className="text-xs text-gray-500">{file.title}</div>
+                            )}
+                          </>
                         )}
                       </td>
-                      {PERIOD_CATEGORIES.includes(selectedCategory) && (
+                      {isGallery(selectedCategory) && (
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {formatDateOnly(file.createdAt)}
+                        </td>
+                      )}
+                      {PERIOD_CATEGORIES.includes(selectedCategory) && !isGallery(selectedCategory) && (
                         <td className="px-4 py-3 text-sm text-gray-600">
                           {file.year && file.month ? `${file.year}년 ${file.month}월` : '-'}
                         </td>
@@ -778,11 +933,22 @@ export const ResourceUploadPage: React.FC = () => {
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {formatFileSize(file.fileSize)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {formatDate(file.createdAt)}
-                      </td>
+                      {!isGallery(selectedCategory) && (
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {formatDate(file.createdAt)}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-center">
-                        <div className="flex justify-center gap-2">
+                        <div className="flex justify-center gap-2 flex-wrap">
+                          {isGallery(selectedCategory) && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => openEditMeta(file)}
+                              className="text-sm px-3 py-1"
+                            >
+                              수정
+                            </Button>
+                          )}
                           <a
                             href={file.fileUrl}
                             target="_blank"
@@ -808,6 +974,44 @@ export const ResourceUploadPage: React.FC = () => {
           )
         )}
       </div>
+
+      {/* 갤러리 제목/행사일 수정 모달 */}
+      {editingFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">제목 · 행사일 수정</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">제목 (카드에 표시)</label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder={editingFile.originalFileName}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">행사일 (user-front 표시용)</label>
+                <input
+                  type="date"
+                  value={editForm.eventDate}
+                  onChange={(e) => setEditForm((f) => ({ ...f, eventDate: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button variant="secondary" onClick={closeEditMeta} disabled={isSavingMeta}>
+                취소
+              </Button>
+              <Button onClick={saveFileMeta} disabled={isSavingMeta}>
+                {isSavingMeta ? '저장 중...' : '저장'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
