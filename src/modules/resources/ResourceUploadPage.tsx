@@ -49,6 +49,14 @@ export const ResourceUploadPage: React.FC = () => {
   });
   const [selectedPeriodFiles, setSelectedPeriodFiles] = useState<File[]>([]);
 
+  // 갤러리 업로드 폼 (제목, 상세정보, 행사일)
+  const [galleryForm, setGalleryForm] = useState({
+    title: '',
+    description: '',
+    eventDate: '', // yyyy-MM-dd
+  });
+  const [selectedGalleryFiles, setSelectedGalleryFiles] = useState<File[]>([]);
+
   // 조회 필터 상태
   const [filterYear, setFilterYear] = useState<number | null>(null);
   const [filterMonth, setFilterMonth] = useState<number | null>(null);
@@ -143,7 +151,9 @@ export const ResourceUploadPage: React.FC = () => {
     setAvailableYears([]);
     setAvailableMonths([]);
     setSelectedPeriodFiles([]);
+    setSelectedGalleryFiles([]);
     setPeriodForm({ year: CURRENT_YEAR, month: new Date().getMonth() + 1 });
+    setGalleryForm({ title: '', description: '', eventDate: '' });
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -175,17 +185,34 @@ export const ResourceUploadPage: React.FC = () => {
       return;
     }
 
-    // 갤러리는 바로 업로드
+    // 갤러리는 파일만 선택 (폼 입력 후 업로드 버튼으로 전송)
+    setSelectedGalleryFiles((prev) => [...prev, ...Array.from(fileList)]);
+  };
+
+  // 갤러리 업로드 (제목·상세정보·행사일 적용)
+  const handleGalleryUpload = async () => {
+    if (selectedGalleryFiles.length === 0) {
+      setError('파일을 선택해주세요.');
+      return;
+    }
+
     setIsUploading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const uploadPromises = Array.from(fileList).map((file) =>
-        resourcesApi.uploadFile(selectedCategory, file)
+      const meta = {
+        title: galleryForm.title.trim() || undefined,
+        description: galleryForm.description.trim() || undefined,
+        eventDate: galleryForm.eventDate.trim() || undefined,
+      };
+      const uploadPromises = selectedGalleryFiles.map((file) =>
+        resourcesApi.uploadFile(selectedCategory, file, meta)
       );
       await Promise.all(uploadPromises);
-      setSuccess(`${fileList.length}개 파일이 업로드되었습니다.`);
+      setSuccess(`${selectedGalleryFiles.length}개 파일이 업로드되었습니다.`);
+      setSelectedGalleryFiles([]);
+      setGalleryForm({ title: '', description: '', eventDate: '' });
       fetchFiles();
       fetchStats();
     } catch (err) {
@@ -622,45 +649,104 @@ export const ResourceUploadPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* 갤러리 - 일반 파일 업로드 (드래그 앤 드롭) */
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragOver
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            {isUploading ? (
-              <div className="flex flex-col items-center">
-                <Loading />
-                <p className="mt-2 text-gray-600">업로드 중...</p>
+          /* 갤러리 - 제목·상세정보·행사일 입력 후 파일 업로드 */
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">제목 (카드에 표시)</label>
+                <input
+                  type="text"
+                  value={galleryForm.title}
+                  onChange={(e) => setGalleryForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="예: 2026 동계 MT"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
-            ) : (
-              <>
-                <div className="text-4xl mb-2">📁</div>
-                <p className="text-gray-600 mb-4">
-                  파일을 드래그하여 놓거나 아래 버튼을 클릭하세요
-                </p>
-                <label className="inline-block">
-                  <input
-                    type="file"
-                    multiple
-                    accept={categoryInfo.accept}
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                    className="hidden"
-                  />
-                  <span className="px-4 py-2 bg-blue-600 text-white rounded-md cursor-pointer hover:bg-blue-700 transition-colors">
-                    파일 선택
-                  </span>
-                </label>
-                <p className="text-xs text-gray-500 mt-2">
-                  이미지 파일만 가능 (jpeg, png, gif, webp)
-                </p>
-              </>
-            )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">행사일 (user-front 표시용)</label>
+                <input
+                  type="date"
+                  value={galleryForm.eventDate}
+                  onChange={(e) => setGalleryForm((f) => ({ ...f, eventDate: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">상세정보 (선택)</label>
+              <textarea
+                value={galleryForm.description}
+                onChange={(e) => setGalleryForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="갤러리 이미지에 대한 설명"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                이미지 파일 <span className="text-red-500">*</span>
+              </label>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {selectedGalleryFiles.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-gray-700 font-medium">{selectedGalleryFiles.length}개 파일 선택됨</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {selectedGalleryFiles.map((file, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+                          {file.name}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGalleryFiles([])}
+                      className="text-red-500 hover:text-red-700 text-sm"
+                    >
+                      선택 취소
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-4xl mb-2">📁</div>
+                    <p className="text-gray-600 mb-2">
+                      이미지를 드래그하거나 선택하세요
+                    </p>
+                    <label className="inline-block">
+                      <input
+                        type="file"
+                        multiple
+                        accept={categoryInfo.accept}
+                        onChange={(e) => handleFileUpload(e.target.files)}
+                        className="hidden"
+                      />
+                      <span className="px-4 py-2 bg-blue-600 text-white rounded-md cursor-pointer hover:bg-blue-700 transition-colors">
+                        파일 선택
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-2">
+                      이미지 파일만 가능 (jpeg, png, gif, webp)
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleGalleryUpload}
+                disabled={isUploading || selectedGalleryFiles.length === 0}
+              >
+                {isUploading ? '업로드 중...' : '업로드'}
+              </Button>
+            </div>
           </div>
         )}
       </div>

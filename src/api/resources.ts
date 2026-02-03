@@ -83,7 +83,7 @@ export const CATEGORY_INFO: Record<ResourceCategory, { label: string; accept: st
 };
 
 export const resourcesApi = {
-  // 파일 업로드 (연도/월 포함)
+  // 파일 업로드 (연도/월/행사일 포함)
   uploadFile: async (
     category: ResourceCategory,
     file: File,
@@ -92,6 +92,7 @@ export const resourcesApi = {
       description?: string;
       year?: number;
       month?: number;
+      eventDate?: string; // yyyy-MM-dd
     }
   ): Promise<ResourceFileResponse> => {
     const formData = new FormData();
@@ -99,8 +100,9 @@ export const resourcesApi = {
     formData.append('file', file);
     if (options?.title) formData.append('title', options.title);
     if (options?.description) formData.append('description', options.description);
-    if (options?.year) formData.append('year', options.year.toString());
-    if (options?.month) formData.append('month', options.month.toString());
+    if (options?.year != null) formData.append('year', options.year.toString());
+    if (options?.month != null) formData.append('month', options.month.toString());
+    if (options?.eventDate) formData.append('eventDate', options.eventDate);
 
     const response = await apiClient.post<ResourceFileResponse>('/api/resources/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -108,7 +110,7 @@ export const resourcesApi = {
     return response.data;
   },
 
-  // 여러 파일 업로드 (연도/월 포함)
+  // 여러 파일 업로드 (연도/월/행사일 포함)
   uploadMultipleFiles: async (
     category: ResourceCategory,
     files: File[],
@@ -117,6 +119,7 @@ export const resourcesApi = {
       description?: string;
       year?: number;
       month?: number;
+      eventDate?: string; // yyyy-MM-dd
     }
   ): Promise<ResourceFileResponse[]> => {
     const formData = new FormData();
@@ -124,8 +127,9 @@ export const resourcesApi = {
     files.forEach((file) => formData.append('files', file));
     if (options?.title) formData.append('title', options.title);
     if (options?.description) formData.append('description', options.description);
-    if (options?.year) formData.append('year', options.year.toString());
-    if (options?.month) formData.append('month', options.month.toString());
+    if (options?.year != null) formData.append('year', options.year.toString());
+    if (options?.month != null) formData.append('month', options.month.toString());
+    if (options?.eventDate) formData.append('eventDate', options.eventDate);
 
     const response = await apiClient.post<ResourceFileResponse[]>('/api/resources/upload-multiple', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
