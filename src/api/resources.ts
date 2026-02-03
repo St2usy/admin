@@ -11,8 +11,7 @@ export interface ResourceFileResponse {
   description: string | null;
   year: number | null;
   month: number | null;
-  eventDate: string | null; // 행사일 (YYYY-MM-DD)
-  createdAt: string;
+  createdAt: string; // 등록/행사일 (admin 행사일 입력 시 이 값에 반영)
 }
 
 export interface ResourceFileUpdateRequest {

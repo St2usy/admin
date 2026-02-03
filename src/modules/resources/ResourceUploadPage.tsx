@@ -333,12 +333,12 @@ export const ResourceUploadPage: React.FC = () => {
     handleFileUpload(e.dataTransfer.files);
   };
 
-  // 갤러리 제목/행사일 수정 모달 열기
+  // 갤러리 제목/행사일 수정 모달 열기 (행사일은 DB created_at에 반영됨)
   const openEditMeta = (file: ResourceFileResponse) => {
     setEditingFile(file);
     setEditForm({
       title: file.title ?? '',
-      eventDate: file.eventDate ? String(file.eventDate).slice(0, 10) : '',
+      eventDate: file.createdAt ? String(file.createdAt).slice(0, 10) : '',
     });
   };
 
@@ -880,10 +880,7 @@ export const ResourceUploadPage: React.FC = () => {
                       {isGallery(selectedCategory) ? '제목' : '파일명'}
                     </th>
                     {isGallery(selectedCategory) && (
-                      <>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">행사일</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">업로드일</th>
-                      </>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">행사일</th>
                     )}
                     {PERIOD_CATEGORIES.includes(selectedCategory) && !isGallery(selectedCategory) && (
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">기간</th>
@@ -924,14 +921,9 @@ export const ResourceUploadPage: React.FC = () => {
                         )}
                       </td>
                       {isGallery(selectedCategory) && (
-                        <>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {formatDateOnly(file.eventDate)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {formatDate(file.createdAt)}
-                          </td>
-                        </>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {formatDateOnly(file.createdAt)}
+                        </td>
                       )}
                       {PERIOD_CATEGORIES.includes(selectedCategory) && !isGallery(selectedCategory) && (
                         <td className="px-4 py-3 text-sm text-gray-600">
