@@ -11,7 +11,14 @@ export interface ResourceFileResponse {
   description: string | null;
   year: number | null;
   month: number | null;
+  eventDate: string | null; // 행사일 (YYYY-MM-DD)
   createdAt: string;
+}
+
+export interface ResourceFileUpdateRequest {
+  title?: string | null;
+  description?: string | null;
+  eventDate?: string | null; // YYYY-MM-DD
 }
 
 export interface FinanceReportResponse {
@@ -149,6 +156,18 @@ export const resourcesApi = {
   // 특정 파일 조회
   getFileById: async (id: number): Promise<ResourceFileResponse> => {
     const response = await apiClient.get<ResourceFileResponse>(`/api/resources/${id}`);
+    return response.data;
+  },
+
+  // 리소스 메타 수정 (제목, 설명, 행사일)
+  updateFileMeta: async (
+    id: number,
+    data: ResourceFileUpdateRequest
+  ): Promise<ResourceFileResponse> => {
+    const response = await apiClient.patch<ResourceFileResponse>(
+      `/api/resources/${id}`,
+      data
+    );
     return response.data;
   },
 

@@ -8,6 +8,7 @@ import {
   ResourceStats,
   CATEGORY_INFO,
 } from '@/api/resources';
+const isGallery = (cat: ResourceCategory) => cat === 'gallery';
 import { Button } from '@/components/common/Button';
 import { Alert } from '@/components/common/Alert';
 import { Loading } from '@/components/common/Loading';
@@ -53,6 +54,14 @@ export const ResourceUploadPage: React.FC = () => {
   const [filterMonth, setFilterMonth] = useState<number | null>(null);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [availableMonths, setAvailableMonths] = useState<number[]>([]);
+
+  // 갤러리 제목/행사일 수정 모달
+  const [editingFile, setEditingFile] = useState<ResourceFileResponse | null>(null);
+  const [editForm, setEditForm] = useState<{ title: string; eventDate: string }>({
+    title: '',
+    eventDate: '',
+  });
+  const [isSavingMeta, setIsSavingMeta] = useState(false);
 
   // 통계 조회
   const fetchStats = useCallback(async () => {
@@ -297,6 +306,39 @@ export const ResourceUploadPage: React.FC = () => {
     handleFileUpload(e.dataTransfer.files);
   };
 
+  // 갤러리 제목/행사일 수정 모달 열기
+  const openEditMeta = (file: ResourceFileResponse) => {
+    setEditingFile(file);
+    setEditForm({
+      title: file.title ?? '',
+      eventDate: file.eventDate ? String(file.eventDate).slice(0, 10) : '',
+    });
+  };
+
+  const closeEditMeta = () => {
+    setEditingFile(null);
+    setEditForm({ title: '', eventDate: '' });
+  };
+
+  const saveFileMeta = async () => {
+    if (!editingFile) return;
+    setIsSavingMeta(true);
+    setError(null);
+    try {
+      await resourcesApi.updateFileMeta(editingFile.id, {
+        title: editForm.title.trim() || null,
+        eventDate: editForm.eventDate.trim() || null,
+      });
+      setSuccess('수정되었습니다.');
+      closeEditMeta();
+      fetchFiles();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSavingMeta(false);
+    }
+  };
+
   // 파일 크기 포맷
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
@@ -312,6 +354,15 @@ export const ResourceUploadPage: React.FC = () => {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+    });
+  };
+
+  const formatDateOnly = (dateStr: string | null): string => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     });
   };
 
@@ -739,12 +790,22 @@ export const ResourceUploadPage: React.FC = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">미리보기</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">파일명</th>
-                    {PERIOD_CATEGORIES.includes(selectedCategory) && (
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                      {isGallery(selectedCategory) ? '제목' : '파일명'}
+                    </th>
+                    {isGallery(selectedCategory) && (
+                      <>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">행사일</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">업로드일</th>
+                      </>
+                    )}
+                    {PERIOD_CATEGORIES.includes(selectedCategory) && !isGallery(selectedCategory) && (
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">기간</th>
                     )}
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">크기</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">업로드일</th>
+                    {!isGallery(selectedCategory) && (
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">업로드일</th>
+                    )}
                     <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">작업</th>
                   </tr>
                 </thead>
@@ -765,12 +826,28 @@ export const ResourceUploadPage: React.FC = () => {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-sm">{file.originalFileName}</div>
-                        {file.title && (
-                          <div className="text-xs text-gray-500">{file.title}</div>
+                        {isGallery(selectedCategory) ? (
+                          <div className="font-medium text-sm">{file.title || file.originalFileName}</div>
+                        ) : (
+                          <>
+                            <div className="font-medium text-sm">{file.originalFileName}</div>
+                            {file.title && (
+                              <div className="text-xs text-gray-500">{file.title}</div>
+                            )}
+                          </>
                         )}
                       </td>
-                      {PERIOD_CATEGORIES.includes(selectedCategory) && (
+                      {isGallery(selectedCategory) && (
+                        <>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {formatDateOnly(file.eventDate)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {formatDate(file.createdAt)}
+                          </td>
+                        </>
+                      )}
+                      {PERIOD_CATEGORIES.includes(selectedCategory) && !isGallery(selectedCategory) && (
                         <td className="px-4 py-3 text-sm text-gray-600">
                           {file.year && file.month ? `${file.year}년 ${file.month}월` : '-'}
                         </td>
@@ -778,11 +855,22 @@ export const ResourceUploadPage: React.FC = () => {
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {formatFileSize(file.fileSize)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {formatDate(file.createdAt)}
-                      </td>
+                      {!isGallery(selectedCategory) && (
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {formatDate(file.createdAt)}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-center">
-                        <div className="flex justify-center gap-2">
+                        <div className="flex justify-center gap-2 flex-wrap">
+                          {isGallery(selectedCategory) && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => openEditMeta(file)}
+                              className="text-sm px-3 py-1"
+                            >
+                              수정
+                            </Button>
+                          )}
                           <a
                             href={file.fileUrl}
                             target="_blank"
@@ -808,6 +896,44 @@ export const ResourceUploadPage: React.FC = () => {
           )
         )}
       </div>
+
+      {/* 갤러리 제목/행사일 수정 모달 */}
+      {editingFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">제목 · 행사일 수정</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">제목 (카드에 표시)</label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder={editingFile.originalFileName}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">행사일 (user-front 표시용)</label>
+                <input
+                  type="date"
+                  value={editForm.eventDate}
+                  onChange={(e) => setEditForm((f) => ({ ...f, eventDate: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button variant="secondary" onClick={closeEditMeta} disabled={isSavingMeta}>
+                취소
+              </Button>
+              <Button onClick={saveFileMeta} disabled={isSavingMeta}>
+                {isSavingMeta ? '저장 중...' : '저장'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
