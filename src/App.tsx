@@ -8,6 +8,7 @@ import { NoticeFormPage } from '@/modules/notices/NoticeFormPage';
 import { GalleryListPage } from '@/modules/gallery/GalleryListPage';
 import { GalleryFormPage } from '@/modules/gallery/GalleryFormPage';
 import { ResourceUploadPage } from '@/modules/resources/ResourceUploadPage';
+import { PledgeProgressPage } from '@/modules/pledge/PledgeProgressPage';
 
 function App() {
   return (
@@ -81,6 +82,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <ResourceUploadPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/pledge"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <PledgeProgressPage />
                 </Layout>
               </ProtectedRoute>
             }
