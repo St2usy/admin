@@ -9,6 +9,8 @@ import { GalleryListPage } from '@/modules/gallery/GalleryListPage';
 import { GalleryFormPage } from '@/modules/gallery/GalleryFormPage';
 import { ResourceUploadPage } from '@/modules/resources/ResourceUploadPage';
 import { PledgeProgressPage } from '@/modules/pledge/PledgeProgressPage';
+import { ActivityListPage } from '@/modules/activities/ActivityListPage';
+import { ActivityFormPage } from '@/modules/activities/ActivityFormPage';
 
 function App() {
   return (
@@ -92,6 +94,36 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <PledgeProgressPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/activities"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ActivityListPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/activities/new"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ActivityFormPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/activities/:id/edit"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ActivityFormPage />
                 </Layout>
               </ProtectedRoute>
             }
