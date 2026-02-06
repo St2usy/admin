@@ -43,6 +43,7 @@ export const ActivityFormPage: React.FC = () => {
       startDate: '',
       endDate: '',
       applyUrl: '',
+      headcount: undefined as number | undefined,
     },
   });
 
@@ -59,6 +60,7 @@ export const ActivityFormPage: React.FC = () => {
           setValue('startDate', data.startDate ?? '');
           setValue('endDate', data.endDate ?? '');
           setValue('applyUrl', data.applyUrl ?? '');
+          setValue('headcount', data.headcount ?? undefined);
           if (data.thumbnailUrl) {
             setExistingThumbnailUrl(data.thumbnailUrl);
             setPreviewUrl(`${API_BASE_URL}${data.thumbnailUrl}`);
@@ -150,6 +152,12 @@ export const ActivityFormPage: React.FC = () => {
           {...register('applyUrl')}
           placeholder="https://..."
           error={errors.applyUrl?.message}
+        />
+
+        <Input
+          label="모집 인원 (팀원 모집 시)"
+          type="number"
+          {...register('headcount', { valueAsNumber: true, min: 1, max: 999 })}
         />
 
         <FileUpload

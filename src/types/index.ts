@@ -139,6 +139,7 @@ export interface ActivityPostRequestDto {
   startDate?: string;
   endDate?: string;
   applyUrl?: string;
+  headcount?: number;
   recruitmentRoles?: string;
   contactUrl?: string;
   status?: RecruitmentStatus;
@@ -158,6 +159,7 @@ export interface ActivityPostResponseDto {
   startDate: string | null;
   endDate: string | null;
   applyUrl: string | null;
+  headcount: number | null;
   recruitmentRoles: string | null;
   contactUrl: string | null;
   status: RecruitmentStatus | null;

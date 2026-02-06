@@ -30,6 +30,7 @@ export const activitiesApi = {
     if (data.startDate) formData.append('startDate', data.startDate);
     if (data.endDate) formData.append('endDate', data.endDate);
     if (data.applyUrl) formData.append('applyUrl', data.applyUrl);
+    if (data.headcount != null && !Number.isNaN(data.headcount)) formData.append('headcount', String(data.headcount));
     if (data.recruitmentRoles) formData.append('recruitmentRoles', data.recruitmentRoles);
     if (data.contactUrl) formData.append('contactUrl', data.contactUrl);
     if (data.status) formData.append('status', data.status);
@@ -56,6 +57,7 @@ export const activitiesApi = {
     if (data.startDate !== undefined) formData.append('startDate', data.startDate ?? '');
     if (data.endDate !== undefined) formData.append('endDate', data.endDate ?? '');
     if (data.applyUrl !== undefined) formData.append('applyUrl', data.applyUrl ?? '');
+    if (data.headcount !== undefined && data.headcount != null && !Number.isNaN(data.headcount)) formData.append('headcount', String(data.headcount));
     if (data.recruitmentRoles !== undefined) formData.append('recruitmentRoles', data.recruitmentRoles ?? '');
     if (data.contactUrl !== undefined) formData.append('contactUrl', data.contactUrl ?? '');
     if (data.status !== undefined) formData.append('status', data.status ?? '');
