@@ -125,6 +125,44 @@ export interface MatchingResponseDto {
   tagsActivity: string[];
 }
 
+// 대외활동/공모전/팀원모집
+export type ActivityCategory = 'EXTERNAL_ACTIVITY' | 'CONTEST' | 'TEAM_RECRUITMENT';
+export type RecruitmentStatus = 'RECRUITING' | 'CLOSED';
+
+export interface ActivityPostRequestDto {
+  category: ActivityCategory;
+  title: string;
+  content: string;
+  author: string;
+  thumbnailUrl?: string;
+  organization?: string;
+  startDate?: string;
+  endDate?: string;
+  applyUrl?: string;
+  recruitmentRoles?: string;
+  contactUrl?: string;
+  status?: RecruitmentStatus;
+}
+
+export interface ActivityPostResponseDto {
+  id: number;
+  category: ActivityCategory;
+  title: string;
+  content: string;
+  thumbnailUrl: string | null;
+  viewCount: number;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+  organization: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  applyUrl: string | null;
+  recruitmentRoles: string | null;
+  contactUrl: string | null;
+  status: RecruitmentStatus | null;
+}
+
 // API 에러 응답 타입
 export interface ApiError {
   message: string;
