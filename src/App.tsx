@@ -15,7 +15,7 @@ import { ActivityFormPage } from '@/modules/activities/ActivityFormPage';
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename="/admin">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
