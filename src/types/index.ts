@@ -165,6 +165,26 @@ export interface ActivityPostResponseDto {
   status: RecruitmentStatus | null;
 }
 
+// 캘린더 관련 타입
+export interface CalendarEventRequestDto {
+  date_start: string; // YYYY-MM-DD 형식
+  date_end: string; // YYYY-MM-DD 형식
+  event_korean: string; // 필수, 최소 1자 이상
+  event_english?: string; // 선택
+  description?: string; // 선택
+}
+
+export interface CalendarEventResponseDto {
+  id: number;
+  date_start: string; // YYYY-MM-DD 형식
+  date_end: string; // YYYY-MM-DD 형식
+  event_korean: string;
+  event_english: string | null;
+  description: string | null;
+  created_at: string; // YYYY-MM-DDTHH:mm:ss 형식
+  updated_at: string; // YYYY-MM-DDTHH:mm:ss 형식
+}
+
 // API 에러 응답 타입
 export interface ApiError {
   message: string;
