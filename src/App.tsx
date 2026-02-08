@@ -11,6 +11,8 @@ import { ResourceUploadPage } from '@/modules/resources/ResourceUploadPage';
 import { PledgeProgressPage } from '@/modules/pledge/PledgeProgressPage';
 import { ActivityListPage } from '@/modules/activities/ActivityListPage';
 import { ActivityFormPage } from '@/modules/activities/ActivityFormPage';
+import { CalendarListPage } from '@/modules/calendar/CalendarListPage';
+import { CalendarFormPage } from '@/modules/calendar/CalendarFormPage';
 
 function App() {
   return (
@@ -124,6 +126,36 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <ActivityFormPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CalendarListPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendar/new"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CalendarFormPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendar/:id/edit"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CalendarFormPage />
                 </Layout>
               </ProtectedRoute>
             }
