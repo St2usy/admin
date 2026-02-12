@@ -17,7 +17,7 @@ import { CalendarFormPage } from '@/modules/calendar/CalendarFormPage';
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter basename="/admin">
+      <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route

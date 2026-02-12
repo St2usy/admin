@@ -1,30 +1,11 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { ApiError } from '@/types';
 
-/**
- * API 베이스 URL 결정
- * - 브라우저 + 동일 오리진: 상대 경로 사용 (빌드 시점 BASE_URL 의존성 제거)
- * - 로컬 개발(다른 포트): VITE_API_BASE_URL 사용 (예: admin 5173, api 8080)
- */
-function getApiBaseUrl(): string {
-  const env = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-  if (typeof window !== 'undefined') {
-    try {
-      const envOrigin = new URL(env).origin;
-      if (envOrigin === window.location.origin) {
-        return '';
-      }
-    } catch {
-      /* ignore */
-    }
-    return env;
-  }
-  return env;
-}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 // Axios 인스턴스 생성
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: getApiBaseUrl(),
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -52,7 +33,7 @@ apiClient.interceptors.response.use(
       const requestUrl = error.config?.url || '';
       // 로그인/로그아웃 API 호출 시에는 리다이렉트하지 않음 (컴포넌트에서 처리)
       const isAuthEndpoint = requestUrl.includes('/api/auth/login') || requestUrl.includes('/api/auth/logout');
-      
+
       if (!isAuthEndpoint) {
         // 인증 실패 시 로그인 페이지로 리다이렉트 (로그인/로그아웃 제외)
         localStorage.removeItem('auth_token');
