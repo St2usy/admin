@@ -11,7 +11,13 @@ export interface ResourceFileResponse {
   description: string | null;
   year: number | null;
   month: number | null;
-  createdAt: string;
+  createdAt: string; // 등록/행사일 (admin 행사일 입력 시 이 값에 반영)
+}
+
+export interface ResourceFileUpdateRequest {
+  title?: string | null;
+  description?: string | null;
+  eventDate?: string | null; // YYYY-MM-DD
 }
 
 export interface FinanceReportResponse {
@@ -76,7 +82,7 @@ export const CATEGORY_INFO: Record<ResourceCategory, { label: string; accept: st
 };
 
 export const resourcesApi = {
-  // 파일 업로드 (연도/월 포함)
+  // 파일 업로드 (연도/월/행사일 포함)
   uploadFile: async (
     category: ResourceCategory,
     file: File,
@@ -85,6 +91,7 @@ export const resourcesApi = {
       description?: string;
       year?: number;
       month?: number;
+      eventDate?: string; // yyyy-MM-dd
     }
   ): Promise<ResourceFileResponse> => {
     const formData = new FormData();
@@ -92,8 +99,9 @@ export const resourcesApi = {
     formData.append('file', file);
     if (options?.title) formData.append('title', options.title);
     if (options?.description) formData.append('description', options.description);
-    if (options?.year) formData.append('year', options.year.toString());
-    if (options?.month) formData.append('month', options.month.toString());
+    if (options?.year != null) formData.append('year', options.year.toString());
+    if (options?.month != null) formData.append('month', options.month.toString());
+    if (options?.eventDate) formData.append('eventDate', options.eventDate);
 
     const response = await apiClient.post<ResourceFileResponse>('/api/resources/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -101,7 +109,7 @@ export const resourcesApi = {
     return response.data;
   },
 
-  // 여러 파일 업로드 (연도/월 포함)
+  // 여러 파일 업로드 (연도/월/행사일 포함)
   uploadMultipleFiles: async (
     category: ResourceCategory,
     files: File[],
@@ -110,6 +118,7 @@ export const resourcesApi = {
       description?: string;
       year?: number;
       month?: number;
+      eventDate?: string; // yyyy-MM-dd
     }
   ): Promise<ResourceFileResponse[]> => {
     const formData = new FormData();
@@ -117,8 +126,9 @@ export const resourcesApi = {
     files.forEach((file) => formData.append('files', file));
     if (options?.title) formData.append('title', options.title);
     if (options?.description) formData.append('description', options.description);
-    if (options?.year) formData.append('year', options.year.toString());
-    if (options?.month) formData.append('month', options.month.toString());
+    if (options?.year != null) formData.append('year', options.year.toString());
+    if (options?.month != null) formData.append('month', options.month.toString());
+    if (options?.eventDate) formData.append('eventDate', options.eventDate);
 
     const response = await apiClient.post<ResourceFileResponse[]>('/api/resources/upload-multiple', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -149,6 +159,18 @@ export const resourcesApi = {
   // 특정 파일 조회
   getFileById: async (id: number): Promise<ResourceFileResponse> => {
     const response = await apiClient.get<ResourceFileResponse>(`/api/resources/${id}`);
+    return response.data;
+  },
+
+  // 리소스 메타 수정 (제목, 설명, 행사일)
+  updateFileMeta: async (
+    id: number,
+    data: ResourceFileUpdateRequest
+  ): Promise<ResourceFileResponse> => {
+    const response = await apiClient.patch<ResourceFileResponse>(
+      `/api/resources/${id}`,
+      data
+    );
     return response.data;
   },
 

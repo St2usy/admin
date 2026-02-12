@@ -33,7 +33,7 @@ apiClient.interceptors.response.use(
       const requestUrl = error.config?.url || '';
       // 로그인/로그아웃 API 호출 시에는 리다이렉트하지 않음 (컴포넌트에서 처리)
       const isAuthEndpoint = requestUrl.includes('/api/auth/login') || requestUrl.includes('/api/auth/logout');
-      
+
       if (!isAuthEndpoint) {
         // 인증 실패 시 로그인 페이지로 리다이렉트 (로그인/로그아웃 제외)
         localStorage.removeItem('auth_token');
@@ -48,6 +48,16 @@ apiClient.interceptors.response.use(
 // 에러 메시지 추출 헬퍼 함수
 export const getErrorMessage = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
+    // 서버에 도달하지 못한 경우 (연결 거부, CORS, 타임아웃 등)
+    if (!error.response) {
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        return '서버에 연결할 수 없습니다. 백엔드 주소(VITE_API_BASE_URL)와 실행 여부를 확인하세요.';
+      }
+      if (error.code === 'ECONNABORTED') {
+        return '요청 시간이 초과되었습니다.';
+      }
+      return error.message || '서버에 연결할 수 없습니다.';
+    }
     const apiError = error.response?.data as ApiError;
     if (apiError?.message) {
       return apiError.message;

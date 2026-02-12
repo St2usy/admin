@@ -8,6 +8,11 @@ import { NoticeFormPage } from '@/modules/notices/NoticeFormPage';
 import { GalleryListPage } from '@/modules/gallery/GalleryListPage';
 import { GalleryFormPage } from '@/modules/gallery/GalleryFormPage';
 import { ResourceUploadPage } from '@/modules/resources/ResourceUploadPage';
+import { PledgeProgressPage } from '@/modules/pledge/PledgeProgressPage';
+import { ActivityListPage } from '@/modules/activities/ActivityListPage';
+import { ActivityFormPage } from '@/modules/activities/ActivityFormPage';
+import { CalendarListPage } from '@/modules/calendar/CalendarListPage';
+import { CalendarFormPage } from '@/modules/calendar/CalendarFormPage';
 
 function App() {
   return (
@@ -81,6 +86,76 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <ResourceUploadPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/pledge"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <PledgeProgressPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/activities"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ActivityListPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/activities/new"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ActivityFormPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/activities/:id/edit"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ActivityFormPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CalendarListPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendar/new"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CalendarFormPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendar/:id/edit"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CalendarFormPage />
                 </Layout>
               </ProtectedRoute>
             }
