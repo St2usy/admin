@@ -1,11 +1,30 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { ApiError } from '@/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+/**
+ * API 베이스 URL 결정
+ * - 브라우저 + 동일 오리진: 상대 경로 사용 (빌드 시점 BASE_URL 의존성 제거)
+ * - 로컬 개발(다른 포트): VITE_API_BASE_URL 사용 (예: admin 5173, api 8080)
+ */
+function getApiBaseUrl(): string {
+  const env = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+  if (typeof window !== 'undefined') {
+    try {
+      const envOrigin = new URL(env).origin;
+      if (envOrigin === window.location.origin) {
+        return '';
+      }
+    } catch {
+      /* ignore */
+    }
+    return env;
+  }
+  return env;
+}
 
 // Axios 인스턴스 생성
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
