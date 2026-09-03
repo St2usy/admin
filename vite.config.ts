@@ -4,6 +4,8 @@ import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // 중앙 nginx가 /admin/ 으로 프록시하므로 에셋·라우트 prefix 일치 필요
+  base: '/admin/',
   plugins: [react()],
   resolve: {
     alias: {
